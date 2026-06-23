@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JA Tampa Bay — Newsletter Builder</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1e2531;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --teal: #00889C;
+    --dark-green: #22404D;
+    --accent: #0052cc;
+    --red: #f85149;
+    --green: #3fb950;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  /* ── Layout ── */
+  .app { display: grid; grid-template-columns: 1fr 480px; min-height: 100vh; }
+  .left { padding: 32px; border-right: 1px solid var(--border); overflow-y: auto; }
+  .right { padding: 32px; background: var(--surface); overflow-y: auto; position: sticky; top: 0; max-height: 100vh; }
+
+  /* ── Header ── */
+  .header { margin-bottom: 28px; }
+  .header h1 { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .header h1 .logo { background: var(--teal); color: white; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 5px; letter-spacing: .5px; }
+  .header p { color: var(--text-muted); font-size: 13px; margin-top: 5px; }
+
+  /* ── Newsletter Meta ── */
+  .meta-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .meta-bar input { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 10px 13px; color: var(--text); font-size: 14px; font-family: inherit; width: 100%; }
+  .meta-bar input:focus { outline: none; border-color: var(--teal); }
+
+  /* ── Story Bank ── */
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 12px; }
+  .stories { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .story-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: grab;
+    transition: border-color .15s, box-shadow .15s;
+    position: relative;
+  }
+  .story-card:hover { border-color: var(--teal); }
+  .story-card.dragging { opacity: .4; }
+  .story-card.drag-over { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(0,136,156,.3); }
+  .story-card.excluded { opacity: .5; border-style: dashed; }
+
+  .card-top { display: flex; align-items: flex-start; gap: 10px; }
+  .drag-handle { color: var(--text-muted); font-size: 16px; cursor: grab; flex-shrink: 0; margin-top: 2px; user-select: none; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-category { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--teal); margin-bottom: 3px; }
+  .card-headline { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta-row { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .icon-btn:hover { background: var(--surface2); color: var(--text); }
+  .icon-btn.include-btn.on { border-color: var(--green); color: var(--green); }
+  .icon-btn.include-btn.off { border-color: var(--border); color: var(--text-muted); }
+
+  /* ── Add / Edit Modal ── */
+  .add-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    justify-content: center;
+  }
+  .add-btn:hover { background: #0065ff; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 560px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+  .modal .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .modal label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .modal input, .modal textarea, .modal select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 13px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    width: 100%;
+  }
+  .modal input:focus, .modal textarea:focus, .modal select:focus { outline: none; border-color: var(--teal); }
+  .modal textarea { resize: vertical; min-height: 120px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+  .btn-primary { background: var(--accent); color: white; border: none; border-radius: 7px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-primary:hover { background: #0065ff; }
+  .btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 7px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+  .btn-secondary:hover { background: var(--surface2); }
+
+  /* ── Right Panel ── */
+  .panel-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .panel-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+  .preview-box {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: Calibri, sans-serif;
+    font-size: 13px;
+    margin-bottom: 16px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .preview-placeholder { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
+  .gen-btn {
+    background: var(--dark-green);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .gen-btn:hover { background: #1a3340; }
+  .copy-btn {
+    background: var(--teal);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .copy-btn:hover { opacity: .9; }
+  .copy-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+  .stat { background: var(--surface2); border-radius: 7px; padding: 10px; text-align: center; }
+  .stat .val { font-size: 22px; font-weight: 700; color: var(--teal); }
+  .stat .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #1a3a2a; border: 1px solid var(--green); color: var(--green);
+    padding: 12px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    opacity: 0; transition: all .3s ease; z-index: 200;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
+
+  /* ── Import Banner ── */
+  .import-banner {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--teal);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .import-banner strong { color: var(--text); }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .right { position: static; max-height: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ─── LEFT: Story Bank ─── -->
+  <div class="left">
+    <div class="header">
+      <h1><span class="logo">JA</span> Newsletter Builder</h1>
+      <p>Add and arrange stories, then generate the branded email HTML.</p>
+    </div>
+
+    <div class="meta-bar">
+      <input type="text" id="newsletterTitle" placeholder="Newsletter title (e.g. Your Summery Summary)" value="">
+      <input type="text" id="newsletterDate" placeholder="Date (e.g. July 1, 2026)" value="">
+    </div>
+
+    <div class="import-banner">
+      <strong>📬 How stories get here:</strong> When someone submits a News/Story through the Microsoft Form, Power Automate emails you the details. Click <strong>+ Add Story</strong> below to paste them in — or type directly. Stories are saved in your browser.
+    </div>
+
+    <div class="section-title">Story Bank</div>
+    <div class="stories" id="storiesContainer"></div>
+
+    <button class="add-btn" onclick="openModal()">＋ Add Story</button>
+  </div>
+
+  <!-- ─── RIGHT: Preview & Generate ─── -->
+  <div class="right">
+    <div class="panel-title">Newsletter Preview</div>
+    <div class="panel-sub">Only ✓ included stories appear in the output.</div>
+
+    <div class="stats">
+      <div class="stat"><div class="val" id="statTotal">0</div><div class="lbl">Stories</div></div>
+      <div class="stat"><div class="val" id="statIncluded">0</div><div class="lbl">Included</div></div>
+      <div class="stat"><div class="val" id="statExcluded">0</div><div class="lbl">Excluded</div></div>
+    </div>
+
+    <div class="preview-box" id="previewBox">
+      <div class="preview-placeholder">Stories will preview here once you add them.</div>
+    </div>
+
+    <button class="gen-btn" onclick="generateAndPreview()">⚡ Generate Newsletter</button>
+    <button class="copy-btn" id="copyBtn" onclick="copyHTML()" disabled>📋 Copy HTML for Outlook</button>
+  </div>
+</div>
+
+<!-- ─── Modal ─── -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2 id="modalTitle">Add Story</h2>
+    <div class="field">
+      <label>Category Tag</label>
+      <select id="fCategory">
+        <option value="TEAM NEWS">TEAM NEWS</option>
+        <option value="PROGRAMS">PROGRAMS</option>
+        <option value="GET INVOLVED">GET INVOLVED</option>
+        <option value="MARK YOUR CALENDAR">MARK YOUR CALENDAR</option>
+        <option value="PROFESSIONAL DEVELOPMENT">PROFESSIONAL DEVELOPMENT</option>
+        <option value="TRAINING &amp; LEARNING">TRAINING &amp; LEARNING</option>
+        <option value="3DE HIGHLIGHTS">3DE HIGHLIGHTS</option>
+        <option value="INTERNSHIP PROGRAM">INTERNSHIP PROGRAM</option>
+        <option value="COMMUNITY">COMMUNITY</option>
+        <option value="ANNOUNCEMENTS">ANNOUNCEMENTS</option>
+        <option value="REMINDERS">REMINDERS</option>
+        <option value="CUSTOM">— Custom —</option>
+      </select>
+    </div>
+    <div class="field" id="customCategoryField" style="display:none">
+      <label>Custom Category</label>
+      <input type="text" id="fCustomCategory" placeholder="e.g. PARTNERSHIP NEWS">
+    </div>
+    <div class="field">
+      <label>Headline *</label>
+      <input type="text" id="fHeadline" placeholder="e.g. Welcome New Employees">
+    </div>
+    <div class="field">
+      <label>Date / When is it happening?</label>
+      <input type="text" id="fDate" placeholder="e.g. July 28, 2026 (optional)">
+    </div>
+    <div class="field">
+      <label>Story Body *</label>
+      <textarea id="fBody" placeholder="Paste or type the story content here. Use double line breaks for paragraph breaks."></textarea>
+    </div>
+    <div class="field">
+      <label>Link URL (optional)</label>
+      <input type="text" id="fLink" placeholder="https://...">
+    </div>
+    <div class="field">
+      <label>Link Label (optional)</label>
+      <input type="text" id="fLinkLabel" placeholder="e.g. Learn more, View the catalog here">
+    </div>
+    <div class="field">
+      <label>Submitted by</label>
+      <input type="text" id="fSubmitter" placeholder="Name (optional)">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveStory()">Save Story</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let stories = JSON.parse(localStorage.getItem('ja_newsletter_stories') || '[]');
+let editingId = null;
+let generatedHTML = '';
+let dragSrcIdx = null;
+
+// ─── Persist ─────────────────────────────────────────────────────────────────
+function save() {
+  localStorage.setItem('ja_newsletter_stories', JSON.stringify(stories));
+}
+
+// ─── Render Story Bank ────────────────────────────────────────────────────────
+function render() {
+  const container = document.getElementById('storiesContainer');
+  const included = stories.filter(s => s.included !== false);
+  const excluded = stories.filter(s => s.included === false);
+
+  document.getElementById('statTotal').textContent = stories.length;
+  document.getElementById('statIncluded').textContent = included.length;
+  document.getElementById('statExcluded').textContent = excluded.length;
+
+  if (stories.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📰</div><div>No stories yet. Click <strong>+ Add Story</strong> to begin.</div></div>';
+    return;
+  }
+
+  container.innerHTML = stories.map((s, i) => `
+    <div class="story-card ${s.included === false ? 'excluded' : ''}"
+         draggable="true"
+         data-idx="${i}"
+         ondragstart="dragStart(event,${i})"
+         ondragover="dragOver(event,${i})"
+         ondrop="drop(event,${i})"
+         ondragend="dragEnd()">
+      <div class="card-top">
+        <div class="drag-handle">⠿</div>
+        <div class="card-body">
+          <div class="card-category">${s.category}</div>
+          <div class="card-headline">${escHtml(s.headline)}</div>
+          <div class="card-meta-row">${s.date ? '📅 ' + escHtml(s.date) + '  ' : ''}${s.submitter ? '👤 ' + escHtml(s.submitter) : ''}</div>
+        </div>
+        <div class="card-actions">
+          <button class="icon-btn include-btn ${s.included === false ? 'off' : 'on'}"
+                  onclick="toggleInclude(${i})" title="${s.included === false ? 'Click to include' : 'Click to exclude'}">
+            ${s.included === false ? '○' : '✓'}
+          </button>
+          <button class="icon-btn" onclick="openModal(${i})" title="Edit">✎</button>
+          <button class="icon-btn" onclick="deleteStory(${i})" title="Delete" style="color:var(--red)">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+function dragStart(e, i) { dragSrcIdx = i; e.target.classList.add('dragging'); }
+function dragOver(e, i) {
+  e.preventDefault();
+  document.querySelectorAll('.story-card').forEach(c => c.classList.remove('drag-over'));
+  if (i !== dragSrcIdx) e.currentTarget.classList.add('drag-over');
+}
+function drop(e, i) {
+  e.preventDefault();
+  if (dragSrcIdx === null || dragSrcIdx === i) return;
+  const moved = stories.splice(dragSrcIdx, 1)[0];
+  stories.splice(i, 0, moved);
+  save(); render();
+}
+function dragEnd() {
+  document.querySelectorAll('.story-card').forEach(c => { c.classList.remove('dragging'); c.classList.remove('drag-over'); });
+  dragSrcIdx = null;
+}
+
+// ─── Toggle Include ───────────────────────────────────────────────────────────
+function toggleInclude(i) {
+  stories[i].included = stories[i].included === false ? true : false;
+  save(); render();
+}
+
+// ─── Delete ───────────────────────────────────────────────────────────────────
+function deleteStory(i) {
+  if (!confirm('Delete this story?')) return;
+  stories.splice(i, 1);
+  save(); render();
+}
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+function openModal(idx) {
+  editingId = idx !== undefined ? idx : null;
+  document.getElementById('modalTitle').textContent = editingId !== null ? 'Edit Story' : 'Add Story';
+
+  const s = editingId !== null ? stories[editingId] : {};
+  const stdCategories = ['TEAM NEWS','PROGRAMS','GET INVOLVED','MARK YOUR CALENDAR','PROFESSIONAL DEVELOPMENT','TRAINING & LEARNING','3DE HIGHLIGHTS','INTERNSHIP PROGRAM','COMMUNITY','ANNOUNCEMENTS','REMINDERS'];
+
+  const cat = s.category || 'TEAM NEWS';
+  const isCustom = !stdCategories.includes(cat);
+  document.getElementById('fCategory').value = isCustom ? 'CUSTOM' : cat;
+  document.getElementById('fCustomCategory').value = isCustom ? cat : '';
+  document.getElementById('customCategoryField').style.display = isCustom ? 'flex' : 'none';
+  document.getElementById('fHeadline').value = s.headline || '';
+  document.getElementById('fDate').value = s.date || '';
+  document.getElementById('fBody').value = s.body || '';
+  document.getElementById('fLink').value = s.link || '';
+  document.getElementById('fLinkLabel').value = s.linkLabel || '';
+  document.getElementById('fSubmitter').value = s.submitter || '';
+
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+
+document.getElementById('fCategory').addEventListener('change', function() {
+  document.getElementById('customCategoryField').style.display = this.value === 'CUSTOM' ? 'flex' : 'none';
+});
+
+document.getElementById('modalBackdrop').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+  editingId = null;
+}
+
+function saveStory() {
+  const catRaw = document.getElementById('fCategory').value;
+  const category = catRaw === 'CUSTOM' ? (document.getElementById('fCustomCategory').value.trim().toUpperCase() || 'NEWS') : catRaw;
+  const headline = document.getElementById('fHeadline').value.trim();
+  const body = document.getElementById('fBody').value.trim();
+
+  if (!headline) { showToast('Headline is required.', true); return; }
+  if (!body) { showToast('Story body is required.', true); return; }
+
+  const story = {
+    id: editingId !== null ? stories[editingId].id : Date.now(),
+    category,
+    headline,
+    date: document.getElementById('fDate').value.trim(),
+    body,
+    link: document.getElementById('fLink').value.trim(),
+    linkLabel: document.getElementById('fLinkLabel').value.trim() || 'Learn more',
+    submitter: document.getElementById('fSubmitter').value.trim(),
+    included: editingId !== null ? stories[editingId].included : true,
+  };
+
+  if (editingId !== null) stories[editingId] = story;
+  else stories.push(story);
+
+  save(); render(); closeModal();
+  showToast(editingId !== null ? '✓ Story updated' : '✓ Story added');
+}
+
+// ─── Generate Newsletter ──────────────────────────────────────────────────────
+function generateAndPreview() {
+  const title = document.getElementById('newsletterTitle').value.trim() || 'Internal Newsletter';
+  const dateStr = document.getElementById('newsletterDate').value.trim() || new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+  const included = stories.filter(s => s.included !== false);
+
+  if (included.length === 0) { showToast('No stories included — toggle ✓ on at least one.', true); return; }
+
+  // Build "In This Issue" bullets
+  const issueList = included.map(s => `&bull; ${escHtml(s.headline)}`).join('<br>\n        ');
+
+  // Build article sections
+  const articles = included.map((s, i) => {
+    const paragraphs = s.body.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+    const paraHTML = paragraphs.map(p => `      <p style="margin:0 0 8px 0;"><span style="font-family:Calibri,sans-serif;font-size:12pt;color:#333333;line-height:1.7;">${escHtml(p).replace(/\n/g,'<br>')}</span></p>`).join('\n');
+
+    const linkHTML = s.link
+      ? `\n      <p style="margin:0;"><span style="font-family:Calibri,sans-serif;font-size:12pt;color:#333333;line-height:1.7;"><a href="${escHtml(s.link)}" style="color:#00889C;font-weight:bold;">${escHtml(s.linkLabel || 'Learn more')}</a></span></p>`
+      : '';
+
+    const divider = i < included.length - 1
+      ? '\n\n  <tr><td style="padding:20px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e0e0e0;font-size:1px;">&nbsp;</td></tr></table></td></tr>'
+      : '';
+
+    return `
+  <!-- ARTICLE ${i+1} -->
+  <tr>
+    <td style="padding:${i===0 ? '24px' : '20px'} 40px 0 40px;">
+      <p style="margin:0 0 2px 0;"><span style="font-family:Calibri,sans-serif;font-size:10pt;font-weight:bold;color:#00889C;letter-spacing:1px;">${escHtml(s.category)}</span></p>
+      <p style="margin:0 0 10px 0;"><span style="font-family:Calibri,sans-serif;font-size:14pt;font-weight:bold;color:#22404D;">${escHtml(s.headline)}${s.date ? ' &mdash; ' + escHtml(s.date) : ''}</span></p>
+${paraHTML}${linkHTML}
+    </td>
+  </tr>${divider}`;
+  }).join('\n');
+
+  generatedHTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#ffffff;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
+
+  <tr><td style="background:#22404D;height:4px;font-size:1px;">&nbsp;</td></tr>
+
+  <!-- HEADER -->
+  <tr>
+    <td style="padding:24px 40px 20px 40px;border-bottom:2px solid #00889C;">
+      <p style="margin:0 0 2px 0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;font-weight:bold;color:#00889C;letter-spacing:1px;">JUNIOR ACHIEVEMENT OF TAMPA BAY</span></p>
+      <p style="margin:0 0 2px 0;"><span style="font-family:Calibri,sans-serif;font-size:22pt;font-weight:bold;color:#22404D;">${escHtml(title)}</span></p>
+      <p style="margin:0;"><span style="font-family:Calibri,sans-serif;font-size:10pt;color:#888888;">${escHtml(dateStr)}</span></p>
+    </td>
+  </tr>
+
+  <!-- IN THIS ISSUE -->
+  <tr>
+    <td style="padding:16px 40px 14px 40px;border-bottom:1px solid #dddddd;">
+      <p style="margin:0 0 6px 0;"><span style="font-family:Calibri,sans-serif;font-size:10pt;font-weight:bold;color:#00889C;letter-spacing:1px;">IN THIS ISSUE</span></p>
+      <p style="margin:0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;color:#444444;line-height:1.9;">
+        ${issueList}
+      </span></p>
+    </td>
+  </tr>
+${articles}
+
+  <!-- SIGNATURE -->
+  <tr><td style="padding:28px 40px 0 40px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:2px solid #22404D;font-size:1px;">&nbsp;</td></tr></table></td></tr>
+  <tr>
+    <td style="padding:16px 40px 32px 40px;">
+      <p style="margin:0 0 1px 0;"><span style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:bold;color:#22404D;">Logan Fiedler</span></p>
+      <p style="margin:0 0 1px 0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;color:#00889C;">Senior Marketing Manager</span></p>
+      <p style="margin:0 0 1px 0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;color:#333333;">Junior Achievement of Tampa Bay, Inc.</span></p>
+      <p style="margin:0 0 1px 0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;color:#555555;">13707 N. 22nd Street, Tampa 33613</span></p>
+      <p style="margin:0 0 6px 0;"><span style="font-family:Calibri,sans-serif;font-size:11pt;color:#555555;">Mobile: (941) 920-0501 &nbsp;|&nbsp; <a href="mailto:logan.fiedler@ja.org" style="color:#22404D;">logan.fiedler@ja.org</a></span></p>
+      <p style="margin:0;"><span style="font-family:Calibri,sans-serif;font-size:10pt;color:#555555;">
+        <a href="https://www.instagram.com/jatampabay/" style="color:#00889C;text-decoration:none;">Instagram</a> &nbsp;|&nbsp;
+        <a href="https://www.facebook.com/juniorachievementoftampabay/" style="color:#00889C;text-decoration:none;">Facebook</a> &nbsp;|&nbsp;
+        <a href="https://twitter.com/JATampaBay" style="color:#00889C;text-decoration:none;">X</a> &nbsp;|&nbsp;
+        <a href="https://www.linkedin.com/company/junior-achievement-of-tampa-bay-inc" style="color:#00889C;text-decoration:none;">LinkedIn</a> &nbsp;|&nbsp;
+        <a href="https://jatampabay.org/" style="color:#00889C;text-decoration:none;">jatampabay.org</a>
+      </span></p>
+    </td>
+  </tr>
+
+  <tr><td style="background:#22404D;height:4px;font-size:1px;">&nbsp;</td></tr>
+
+</table>
+</body></html>`;
+
+  // Update preview
+  const preview = document.getElementById('previewBox');
+  preview.innerHTML = `<div style="transform:scale(0.55);transform-origin:top left;width:182%;pointer-events:none;">${generatedHTML}</div>`;
+  preview.style.minHeight = '300px';
+
+  document.getElementById('copyBtn').disabled = false;
+  showToast('✓ Newsletter generated — ready to copy!');
+}
+
+// ─── Copy HTML ────────────────────────────────────────────────────────────────
+async function copyHTML() {
+  if (!generatedHTML) return;
+  try {
+    await navigator.clipboard.writeText(generatedHTML);
+    showToast('✓ HTML copied! Paste into Outlook New Email → Format Text → HTML view');
+  } catch {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = generatedHTML;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✓ HTML copied!');
+  }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? '#3a1a1a' : '#1a3a2a';
+  t.style.borderColor = isError ? '#f85149' : '#3fb950';
+  t.style.color = isError ? '#f85149' : '#3fb950';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
